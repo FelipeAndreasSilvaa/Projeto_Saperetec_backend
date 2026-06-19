@@ -1,16 +1,16 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { WorkOrder } from './work-orders/entities/work-order.entity';
 import { HealthModule } from './health/health.module';
-import { WorkOrdersModule } from './work-orders/work-orders.module';
-import { UsersModule } from './users/users.module';
-import { WorkOrdersModule } from './work-orders/work-orders.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 
+
+
 @Module({
-  imports: [AuthModule, UsersModule, WorkOrdersModule, HealthModule],
+  imports: [AuthModule, UsersModule, WorkOrder, HealthModule, PrismaModule],
   controllers: [AppController],
   providers: [AppService],
 })

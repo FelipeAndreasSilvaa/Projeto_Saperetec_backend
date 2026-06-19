@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  technician
+  supervisor
+  admin
+}
+
+enum WorkOrderStatus {
+  open
+  in_progress
+  done
+}
+
+enum Priority {
+  low
+  medium
+  high
+}
+
+model User {
+  id           String @id @default(uuid()) @db.Uuid
+  email        String @unique
+  passwordHash String
+  name         String
+
+  role   Role
+  teamId String?
+
+  assignedWorkOrders WorkOrder[]      @relation("WorkOrderAssignee")
+  workOrderEvents    WorkOrderEvent[] @relation("WorkOrderActor")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("flx_users")
+}
+
+model WorkOrder {
+  id          String  @id @default(uuid()) @db.Uuid
+  title       String
+  description String?
+
+  status   WorkOrderStatus @default(open)
+  priority Priority        @default(low)
+
+  resolutionNotes String?
+
+  teamId String
+
+  version Int @default(1)
+
+  assigneeId String? @db.Uuid
+
+  assignee User? @relation("WorkOrderAssignee", fields: [assigneeId], references: [id])
+
+  checklistItems ChecklistItem[]
+  events         WorkOrderEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([teamId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("flx_work_orders")
+}
+
+model ChecklistItem {
+  id String @id @default(uuid()) @db.Uuid
+
+  label     String
+  completed Boolean @default(false)
+
+  workOrderId String @db.Uuid
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@map("flx_checklist_items")
+}
+
+model WorkOrderEvent {
+  id String @id @default(uuid()) @db.Uuid
+
+  workOrderId String @db.Uuid
+  actorId     String @db.Uuid
+
+  fromStatus WorkOrderStatus?
+  toStatus   WorkOrderStatus
+
+  createdAt DateTime @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  actor User @relation("WorkOrderActor", fields: [actorId], references: [id])
+
+  @@index([workOrderId])
+  @@index([actorId])
+  @@map("flx_work_order_events")
+}
