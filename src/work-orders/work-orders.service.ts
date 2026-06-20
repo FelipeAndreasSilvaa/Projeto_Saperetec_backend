@@ -3,7 +3,7 @@ import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ListWorkOrdersDto } from './dto/list-work-orders.dto';
-import { WorkOrderStatus } from '@prisma/client';
+import { WorkOrderStatus, Priority, Role, WorkOrder } from '@prisma/client';
 
 const ALLOWED_TRANSITIONS: Record<
   WorkOrderStatus,
@@ -116,6 +116,12 @@ export class WorkOrdersService {
         workOrder.status,
         dto.status,
       );
+    
+      await this.validateStatusPreconditions(
+        workOrder,
+        dto,
+        user,
+      );
     }
   
     return this.prisma.workOrder.update({
@@ -171,6 +177,113 @@ export class WorkOrdersService {
         code: 'FLX_INVALID_STATUS_TRANSITION',
         message: `Transição de status inválida: ${currentStatus} → ${nextStatus}`,
       });
+    }
+  }
+
+  private async validateStatusPreconditions(
+    workOrder: WorkOrder,
+    dto: UpdateWorkOrderDto,
+    user: any,
+  ) {
+    if (
+      workOrder.status === 'open' &&
+      dto.status === 'in_progress'
+    ) {
+      if (!dto.assigneeId && !workOrder.assigneeId) {
+        throw new BadRequestException({
+          code: 'FLX_VALIDATION_ERROR',
+          message:
+            'assigneeId é obrigatório para iniciar a ordem de serviço.',
+        });
+      }
+  
+      const assigneeId =
+        dto.assigneeId ?? workOrder.assigneeId;
+  
+      const assignee = await this.prisma.user.findUnique({
+        where: {
+          id: assigneeId!,
+        },
+      });
+  
+      if (!assignee) {
+        throw new BadRequestException({
+          code: 'FLX_VALIDATION_ERROR',
+          message: 'Técnico não encontrado.',
+        });
+      }
+  
+      if (assignee.role !== Role.technician) {
+        throw new BadRequestException({
+          code: 'FLX_VALIDATION_ERROR',
+          message:
+            'A ordem de serviço só pode ser atribuída a técnicos.',
+        });
+      }
+  
+      if (assignee.teamId !== workOrder.teamId) {
+        throw new BadRequestException({
+          code: 'FLX_VALIDATION_ERROR',
+          message:
+            'O técnico deve pertencer à mesma equipe da ordem de serviço.',
+        });
+      }
+    }
+  
+    if (
+      workOrder.status === 'in_progress' &&
+      dto.status === 'done'
+    ) {
+      const resolutionNotes =
+        dto.resolutionNotes?.trim();
+  
+      if (!resolutionNotes) {
+        throw new BadRequestException({
+          code: 'FLX_VALIDATION_ERROR',
+          message:
+            'resolutionNotes é obrigatório para concluir a ordem de serviço.',
+        });
+      }
+  
+      if (resolutionNotes.length < 10) {
+        throw new BadRequestException({
+          code: 'FLX_VALIDATION_ERROR',
+          message:
+            'resolutionNotes deve ter no mínimo 10 caracteres.',
+        });
+      }
+  
+      if (
+        workOrder.priority === Priority.high &&
+        ![Role.supervisor, Role.admin].includes(user.role)
+      ) {
+        throw new BadRequestException({
+          code: 'FLX_FORBIDDEN',
+          message:
+            'Ordens de alta prioridade só podem ser concluídas por supervisor ou admin.',
+        });
+      }
+    }
+  
+    if (
+      workOrder.status === 'in_progress' &&
+      dto.status === 'open'
+    ) {
+      const pendingItems =
+        await this.prisma.checklistItem.count({
+          where: {
+            workOrderId: workOrder.id,
+            completed: false,
+          },
+        });
+  
+      if (pendingItems === 0) {
+        throw new BadRequestException({
+          code: 'FLX_VALIDATION_ERROR',
+          message:
+            'A ordem de serviço só pode voltar para open se houver itens pendentes no checklist.',
+        });
+      }
     }
   }
 
