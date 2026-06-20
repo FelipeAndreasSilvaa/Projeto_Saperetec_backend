@@ -4,6 +4,7 @@ import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ListWorkOrdersDto } from './dto/list-work-orders.dto';
 import { WorkOrderStatus, Priority, Role, WorkOrder } from '@prisma/client';
+import { WebhookService } from 'src/webhook/webhook.service';
 
 const ALLOWED_TRANSITIONS: Record<
   WorkOrderStatus,
@@ -16,7 +17,7 @@ const ALLOWED_TRANSITIONS: Record<
 
 @Injectable()
 export class WorkOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly webhook: WebhookService) {}
   create(data: CreateWorkOrderDto, user: any) {
     return this.prisma.workOrder.create({
       data: {
@@ -147,6 +148,16 @@ export class WorkOrdersService {
             fromStatus: workOrder.status,
             toStatus: dto.status,
           },
+        });
+
+        await this.webhook.send({
+          workOrderId: workOrder.id,
+          actorId: user.id,
+      
+          fromStatus: workOrder.status,
+          toStatus: dto.status,
+      
+          occurredAt: new Date().toISOString(),
         });
       }
     
