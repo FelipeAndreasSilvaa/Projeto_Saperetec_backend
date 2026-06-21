@@ -1,5 +1,6 @@
 import {
     IsEnum,
+    IsIn,
     IsInt,
     IsOptional,
     IsString,
@@ -56,5 +57,11 @@ import {
     @IsString({
       message: 'O parâmetro sort deve ser um texto.',
     })
+    @IsIn([
+      'createdAt:desc',
+      'createdAt:asc',
+      'priority:desc',
+      'priority:asc',
+    ])
     sort?: string;
   }

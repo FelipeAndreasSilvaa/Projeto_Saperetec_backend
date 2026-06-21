@@ -37,12 +37,13 @@ export class WorkOrdersService {
     });
   }
 
-  async findAll(query: ListWorkOrdersDto,user: any) {
+  async findAll(query: ListWorkOrdersDto, user: any) {
     const {
       page = 1,
       perPage = 20,
       status,
       priority,
+      sort = 'createdAt:desc',
     } = query;
   
     const where = {
@@ -51,17 +52,40 @@ export class WorkOrdersService {
       ...(priority && { priority }),
     };
   
+    const orderBy = (() => {
+      switch (sort) {
+        case 'createdAt:asc':
+          return {
+            createdAt: 'asc' as const,
+          };
+  
+        case 'priority:desc':
+          return {
+            priority: 'desc' as const,
+          };
+  
+        case 'priority:asc':
+          return {
+            priority: 'asc' as const,
+          };
+  
+        default:
+          return {
+            createdAt: 'desc' as const,
+          };
+      }
+    })();
+  
     const [data, total] = await this.prisma.$transaction([
       this.prisma.workOrder.findMany({
         where,
         skip: (page - 1) * perPage,
         take: perPage,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy,
+  
         include: {
           checklistItems: true,
-        
+  
           assignee: {
             select: {
               id: true,
